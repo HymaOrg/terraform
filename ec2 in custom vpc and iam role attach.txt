@@ -1,0 +1,289 @@
+EC2 with custom vpc and iam role attached to ec2 and s3 dependency
+
+
+s3 module 
+
+
+main.tf
+
+resource "aws_s3_bucket" "name" {
+    bucket = var.bucket_name
+  }
+
+
+variable.tf
+
+variable "bucket_name" { 
+    type = string
+    default = ""
+}
+
+
+
+iam module
+
+
+main.tf
+
+resource "aws_iam_role" "example_role" {
+  name = var.role
+
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "example_attachment" {
+  role       = aws_iam_role.example_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
+resource "aws_iam_instance_profile" "ec2role" {
+  name = "testrole"
+  role = aws_iam_role.example_role.name
+}
+
+
+
+variable.tf
+
+variable "role" {
+  type    = string
+  description = "The name of the role to be created."
+}
+
+
+output.tf
+
+output "role_name" {
+  value = aws_iam_role.example_role
+}
+
+output "roleattach" {
+  value = aws_iam_instance_profile.ec2role.name
+  
+}
+
+
+
+vpc module
+
+
+main.tf
+
+resource "aws_vpc" "main" {
+  cidr_block  = var.cidr
+  tags = {
+    Name = "Test-vpc"
+  }
+}
+
+resource "aws_subnet" "public" {
+  vpc_id = aws_vpc.main.id
+  cidr_block = var.public_subnet_cidr
+  map_public_ip_on_launch = true
+  availability_zone = "ap-south-1a"
+  tags = {
+    Name = "Test-public-subnet"
+  }
+}
+
+
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "main-igw"
+  }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "public-rt"
+  }
+}
+
+resource "aws_route" "internet_access"{
+  route_table_id = aws_route_table.public.id
+  destination_cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+resource "aws_route_table_association" "public_association" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
+
+
+variable.tf
+
+variable "cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+}
+
+variable "public_subnet_cidr" {
+  type        = string
+}
+
+
+output.tf
+
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+output "public_subnet_id" {
+  value = aws_subnet.public.id
+}
+
+
+
+ec2 module
+
+
+main.tf
+
+resource "aws_instance" "name" {
+  ami  = var.ami_id
+  instance_type = var.instance_type
+  subnet_id = var.subnet_id
+  iam_instance_profile = var.roleattach
+  tags = {
+    Name = "custom-vpc"
+  }
+
+user_data = <<-EOF
+#!/bin/bash
+yum install httpd -y
+service httpd start
+chkconfig httpd on
+mkdir /var/www/html
+echo 'Hey!! This is my First Website on server1!!' > /var/www/html/index.html
+EOF
+}
+
+
+variable.tf
+
+variable "ami_id" {
+    type = string
+  }
+
+variable "instance_type" {
+    type = string
+  }
+
+variable "subnet_id" {
+    type = string
+}
+
+variable "roleattach" {
+    type = string
+}
+
+
+
+output.tf
+
+output "server" {
+    value =aws_instance.name.ami
+}
+
+
+
+outside the modules
+
+
+
+main.tf
+
+module "s3" {
+  source = "./s3"
+  bucket_name = var.bucket
+}
+
+module "iam" {
+  source = "./iam"
+  role = var.role_name
+  depends_on = [module.s3]
+}
+
+module "vpc" {
+  source = "./vpc"
+  cidr = var.cidr  
+  public_subnet_cidr = var.public_subnet_cidr
+} 
+
+
+module "ec2" {
+  source = "./ec2"
+subnet_id = module.vpc.public_subnet_id
+instance_type = "t2.micro"
+ami_id = "ami-0e4fd655fb4e26c30"
+roleattach = module.iam.roleattach
+}
+
+
+variable.tf
+
+variable "bucket" { 
+    type = string
+    default = ""
+}
+
+
+variable "role_name" {
+  type    = string
+  description = "The name of the role to be created."
+}
+
+variable "cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+}
+
+variable "public_subnet_cidr" {
+  type        = string
+}
+
+
+
+terraform.tfvars
+
+bucket = "aws-test-terraform-123"
+
+role_name = "Test.role"
+
+cidr = "12.0.0.0/16"
+public_subnet_cidr = "12.0.1.0/24"
+
+
+
+output.tf
+
+output "roles" {
+  value = module.iam.role_name
+}
+
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "subnet_id" {
+  value = module.vpc.public_subnet_id
+}

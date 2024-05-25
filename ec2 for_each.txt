@@ -1,0 +1,53 @@
+ec2 for_each
+
+
+main.tf
+
+resource "aws_instance" "ec2" {
+  for_each = var.ec2_instances
+
+  ami           = each.value.ami
+  instance_type = each.value.instance_type
+  key_name      = each.value.key_name
+  subnet_id     = each.value.subnet_id
+
+  tags = each.value.tags
+}
+
+
+variable.tf
+
+variable "ec2_instances" {
+  description = "Map of EC2 instance configurations"
+  type = map(object({
+    ami           = string
+    instance_type = string
+    key_name      = string
+    subnet_id     = string
+    tags          = map(string)
+  }))
+}  
+
+
+terraform.tfvars
+
+ec2_instances = {
+  "instance1" = {
+      ami           = "ami-0e4fd655fb4e26c30"
+      instance_type = "t2.micro"
+      key_name      = "RUPA@90"
+      subnet_id     = "subnet-09499331b3facde04"
+      tags          = {
+        Name = "instance1"
+      }
+    },
+    "instance2" = {
+      ami           = "ami-05a5bb48beb785bf1"
+      instance_type = "t2.micro"
+      key_name      = "RUPA@90"
+      subnet_id     = "subnet-0bf89f82c8ad90888"
+      tags          = {
+        Name = "instance2"
+      }
+    }
+}

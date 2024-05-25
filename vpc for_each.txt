@@ -1,0 +1,63 @@
+vpc for_each
+
+
+main.tf
+
+resource "aws_vpc" "main" {
+  cidr_block  = var.cidr
+  
+    tags = {
+    Name = "Test-vpc"
+  }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  
+    tags = {
+    Name = "Test-igw"
+  }
+}
+
+
+variable.tf
+
+variable "cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+}
+
+
+outside module
+
+
+main.tf
+
+module "vpc" {
+  source = "./vpc"
+  for_each = var.cidr
+  cidr = each.value.cidr
+}
+
+
+variable.tf
+
+
+variable "cidr" {
+  type = map(object({
+    cidr = string
+ 
+  }))
+}
+
+
+terraform.tfvars
+
+cidr = {
+  cidr1 = {
+    cidr = "12.0.0.0/16"
+  },
+  cidr2 = {
+    cidr = "14.0.0.0/16"
+  }
+}

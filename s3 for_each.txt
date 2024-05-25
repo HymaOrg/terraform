@@ -1,0 +1,29 @@
+module "s3" {
+  source = "./s3"
+  for_each = var.bucket
+  bucket_name = each.value.bucket_name
+}
+
+
+variable "bucket" {
+  type = map(object({
+    bucket_name = string
+  
+  }))
+  
+}
+
+bucket = {
+  bucket1 = {
+    bucket_name = "hyma1"
+    
+  },
+    bucket2 = {
+    bucket_name = "hyma2"
+    
+  },
+    bucket3 = {
+    bucket_name = "hyma3"
+    
+  }
+}

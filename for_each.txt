@@ -1,0 +1,39 @@
+create enabling and disabling bucket using for_each
+
+
+variable.tf
+
+
+variable "s3_buckets" {
+  default = {
+    bucket1 = {
+      versioning = true
+    }
+    bucket2 = {
+      versioning = false
+    }
+  }
+}
+
+
+main.tf
+
+
+resource "aws_s3_bucket" "example" {
+  for_each = var.s3_buckets
+
+  bucket = "${each.key}-example-bucket"
+}
+
+resource "aws_s3_bucket_versioning" "example" {
+  for_each = var.s3_buckets
+
+  bucket = aws_s3_bucket.example[each.key].id
+
+  versioning_configuration {
+    status = each.value.versioning ? "Enabled" : "Suspended"
+  }
+}
+
+
+ 
